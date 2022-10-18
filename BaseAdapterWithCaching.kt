@@ -1,23 +1,19 @@
-
-import android.view.View
-import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.RecyclerView.*
-import timber.log.Timber
-import java.util.HashSet
-import java.util.concurrent.ConcurrentHashMap
-
 /**
  * Created by Sumeet on 24,January,2022
 This class helps you to return same view holder once bind , without rebinding again
 Just sent the required type for enabling cache using enableCacheForViewHolderType and overriding getItemId()
-*/
+ */
 abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
+
+    abstract fun getCachedItemId(position: Int): String
+    //Return unique id from this for items which you want to cache , override this in child class and replace getItemId in base class with getCachedItemId()
 
     private val cachedItems: MutableMap<String, ViewHolder> = ConcurrentHashMap()
     private val cachedViewHolderTypes: MutableSet<Int> = HashSet()
 
     companion object {
         const val NO_CACHED_ITEM_ID = "NO_CACHED_ITEM_ID"
+        const val TAG = "BaseAdapterWithCaching"
     }
 
     //Return cached view holder for particular position
@@ -27,11 +23,11 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
             position: Int,
             type: Int
         ): View? {
-            val cachedItemId = getItemId(position)
+            val cachedItemId = getCachedItemId(position)
             if (cachedViewHolderTypes.contains(type) && cachedItemId != NO_CACHED_ITEM_ID
                 && cachedItems.containsKey(cachedItemId)
             ) {
-                Timber.d("Returning view from custom cache for position:$position")
+                Log.d(TAG, "Returning view from custom cache for position:$position")
                 return cachedItems[cachedItemId]?.itemView
             }
             return null
@@ -45,9 +41,10 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
     protected fun isCacheEnabledForViewHolder(type: Int): Boolean =
         cachedViewHolderTypes.contains(type)
 
-    private val adapterDataObserver: DataChangeObserver = object : DataChangeObserver() {   //This observers will take care of removing the cached items if they are not in new set
+    private val adapterDataObserver: DataChangeObserver = object :
+        DataChangeObserver() {   //This observers will take care of removing the cached items if they are not in new set
         override fun onChanged() {
-            Timber.d("items added or moved")
+            Log.d(TAG, "items added or moved")
             if (cachedItems.isEmpty())
                 return
 
@@ -56,7 +53,7 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
             val newItemsIds = mutableSetOf<String>()
 
             for (newIndex in 0 until itemCount) {
-                val itemId = getItemId(newIndex)
+                val itemId = getCachedItemId(newIndex)
                 newItemsIds.add(itemId)
             }
 
@@ -76,7 +73,7 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
         }
 
         override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
-            Timber.d("On Item range removed  called for adapter observer")
+            Log.d(TAG, "On Item range removed  called for adapter observer")
             if (cachedItems.isEmpty())
                 return
             val iterator: MutableIterator<String> = cachedItems.keys.iterator()
@@ -85,7 +82,7 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
                 val cachedItemId = iterator.next()
                 val index = cachedItems[cachedItemId]?.bindingAdapterPosition ?: -1
                 if (index != -1 && positionStart <= index && index < positionStart + itemCount) {
-                    Timber.d("Removing view from adapter observer for position:$index")
+                    Log.d(TAG, "Removing view from adapter observer for position:$index")
                     cachedItems[cachedItemId]?.itemView?.visibility = View.GONE
                     iterator.remove()
                 }
@@ -100,7 +97,7 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
     }
 
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
-        Timber.d("onDetached recycler view called ")
+        Log.d(TAG, "onDetached recycler view called ")
         unregisterAdapterDataObserver(adapterDataObserver)
         super.onDetachedFromRecyclerView(recyclerView)
     }
@@ -109,10 +106,10 @@ abstract class BaseAdapterWithCaching : RecyclerView.Adapter<ViewHolder>() {
     override fun onViewDetachedFromWindow(holder: ViewHolder) {
         if (cachedViewHolderTypes.contains(holder.itemViewType)) {
             val pos = holder.bindingAdapterPosition
-            Timber.d("onViewDetached called for position : $pos")
+            Log.d(TAG, "onViewDetached called for position : $pos")
             if (pos > -1) {
                 holder.setIsRecyclable(false)
-                cachedItems[getItemId(pos)] = holder
+                cachedItems[getCachedItemId(pos)] = holder
             }
 
         }
